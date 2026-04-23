@@ -64,6 +64,12 @@ function secondsToCron(seconds) {
   return `*/${minutes} * * * *`;
 }
 
+function isReachable(url) {
+  return axios.get(url, { timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+}
+
 // ─────────────────────────────────────────────
 // Core: Poll one service + emit real-time event
 // ─────────────────────────────────────────────
@@ -87,11 +93,10 @@ async function pollService(service) {
 
     console.log(`   ✅ ${statusCode} | ${latencyMs}ms | Up: ${isUp}`);
   } catch (err) {
-    latencyMs = Date.now() - startTime;
-    statusCode = 0;
-    isUp = false;
-    console.log(`   ❌ Request failed: ${err.message}`);
-  }
+  latencyMs = Date.now() - startTime;
+  statusCode = 0;
+  isUp = false;
+}
 
   // ── Build the health check payload ──────────
   const healthCheck = {
