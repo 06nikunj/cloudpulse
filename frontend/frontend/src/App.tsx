@@ -1,8 +1,6 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
-} from "recharts"
+import { LineChart, Line, Tooltip, ResponsiveContainer } from "recharts";
 
 // ── Types ──────────────────────────────────────────────────────────────
 interface Service {
