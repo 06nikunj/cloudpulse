@@ -229,11 +229,26 @@ function ServiceCard({ svc, onRemove }: { svc: Service; onRemove: (id: string) =
 function AddServiceForm({ onAdd }: { onAdd: (name: string, url: string) => void }) {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
+  const [error, setError] = useState<string | null>(null)
   const [focused, setFocused] = useState<string | null>(null)
 
   function handle(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !url.trim()) return
+
+    // URL validation
+    try {
+      const validatedUrl = new URL(url.trim());
+      if (validatedUrl.protocol !== "http:" && validatedUrl.protocol !== "https:") {
+        setError("URL must start with http:// or https://");
+        return;
+      }
+    } catch (err) {
+      setError("Please enter a valid URL (e.g., https://google.com)");
+      return;
+    }
+
+    setError(null)
     onAdd(name.trim(), url.trim())
     setName(""); setUrl("")
   }
@@ -241,7 +256,7 @@ function AddServiceForm({ onAdd }: { onAdd: (name: string, url: string) => void 
   const inputStyle = (field: string) => ({
     width: "100%", padding: "10px 14px", borderRadius: 10,
     background: "#0f172a", color: "#e2e8f0", fontSize: 13,
-    border: `1px solid ${focused === field ? "#6366f1" : "#334155"}`,
+    border: `1px solid ${focused === field ? "#6366f1" : error && field === "url" ? "#ef4444" : "#334155"}`,
     outline: "none", transition: "border-color 0.15s", boxSizing: "border-box" as const,
     fontFamily: "inherit"
   })
@@ -258,7 +273,7 @@ function AddServiceForm({ onAdd }: { onAdd: (name: string, url: string) => void 
         </div>
         <div style={{ flex: "2 1 240px" }}>
           <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 5, letterSpacing: "0.06em" }}>ENDPOINT URL</label>
-          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://api.example.com/health"
+          <input value={url} onChange={e => { setUrl(e.target.value); setError(null); }} placeholder="https://api.example.com/health"
             onFocus={() => setFocused("url")} onBlur={() => setFocused(null)}
             style={inputStyle("url")} />
         </div>
@@ -272,6 +287,7 @@ function AddServiceForm({ onAdd }: { onAdd: (name: string, url: string) => void 
           + Add service
         </button>
       </form>
+      {error && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 10, margin: "10px 0 0" }}>{error}</p>}
     </div>
   )
 }
@@ -414,15 +430,27 @@ export default function CloudPulse() {
   const [logs, setLogs] = useState<Log[]>(INITIAL_LOGS)
 
   const addService = useCallback((name: string, url: string) => {
+    // Basic simulation: if URL contains "error" or "invalid", it's down.
+    // Otherwise it starts as "operational" for this mock version.
+    const isInvalid = url.toLowerCase().includes("error") || url.toLowerCase().includes("invalid");
+    
     const svc: Service = {
       id: Date.now().toString(), name, url,
-      status: "operational", statusCode: 200, latency: Math.floor(Math.random() * 150) + 20,
-      uptime: 100, history: genHistory(80), lastChecked: new Date()
+      status: isInvalid ? "down" : "operational", 
+      statusCode: isInvalid ? 0 : 200, 
+      latency: isInvalid ? 0 : Math.floor(Math.random() * 150) + 20,
+      uptime: isInvalid ? 0 : 100, 
+      history: genHistory(isInvalid ? 0 : 80), 
+      lastChecked: new Date()
     }
     setServices(prev => [svc, ...prev])
     setLogs(prev => [{
       id: Date.now().toString(), service: name,
-      message: `Service added to monitoring — health check scheduled`, level: "info", time: new Date()
+      message: isInvalid 
+        ? `Service added but health check failed: Host unreachable` 
+        : `Service added to monitoring — health check scheduled`, 
+      level: isInvalid ? "error" : "info", 
+      time: new Date()
     }, ...prev])
   }, [])
 
