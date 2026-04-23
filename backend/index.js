@@ -80,6 +80,7 @@ async function pollService(service) {
   let statusCode = 0;
   let isUp = false;
   let latencyMs = 0;
+  let errorReason = "";
 
   try {
     const response = await axios.get(service.url, {
@@ -93,10 +94,25 @@ async function pollService(service) {
 
     console.log(`   ✅ ${statusCode} | ${latencyMs}ms | Up: ${isUp}`);
   } catch (err) {
-  latencyMs = Date.now() - startTime;
-  statusCode = 0;
-  isUp = false;
-}
+    latencyMs = Date.now() - startTime;
+    statusCode = 0;
+    isUp = false;
+    
+    // Detailed error reporting
+    if (err.code === "ECONNREFUSED") {
+      errorReason = "Connection refused";
+    } else if (err.code === "ENOTFOUND") {
+      errorReason = "DNS resolution failed";
+    } else if (err.code === "ETIMEDOUT" || err.code === "ECONNABORTED") {
+      errorReason = "Request timeout";
+    } else if (err.message.includes("Invalid URL")) {
+      errorReason = "Invalid URL format";
+    } else {
+      errorReason = err.message;
+    }
+    
+    console.error(`   ❌ Invalid/Unreachable | Error: ${errorReason}`);
+  }
 
   // ── Build the health check payload ──────────
   const healthCheck = {
@@ -216,10 +232,17 @@ app.post("/api/services", async (req, res) => {
     });
   }
 
-  if (!url.startsWith("http")) {
+  // Improved URL validation
+  let validatedUrl;
+  try {
+    validatedUrl = new URL(url);
+    if (validatedUrl.protocol !== "http:" && validatedUrl.protocol !== "https:") {
+      throw new Error("Invalid protocol");
+    }
+  } catch (err) {
     return res.status(400).json({
       success: false,
-      message: "Invalid URL",
+      message: "Invalid URL. Please provide a valid http or https address.",
     });
   }
 
@@ -237,14 +260,14 @@ app.post("/api/services", async (req, res) => {
     });
   }
 
-  // 💾 Insert into DB
+  // 💾 Insert into DB with initial status "PENDING" (will be updated by first poll)
   const { data, error } = await supabase
     .from("services")
     .insert({
       name,
-      url,
+      url: validatedUrl.toString(),
       interval_seconds,
-      status: "UP",
+      status: "PENDING",
     })
     .select()
     .single();
